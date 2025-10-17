@@ -135,7 +135,6 @@ def _first_step_logits_via_chat(
     input_ids = input_ids.to(model_device)
     attention_mask = torch.ones_like(input_ids)
     
-    # 입력 길이 저장 (나중에 생성된 부분만 추출하기 위해)
     input_length = input_ids.shape[1]
     
     # Generate with proper configuration
@@ -152,7 +151,6 @@ def _first_step_logits_via_chat(
         sequences = outputs.sequences if hasattr(outputs, 'sequences') else outputs
         scores = outputs.scores if hasattr(outputs, 'scores') else None
     
-    # 생성된 토큰만 디코딩 (입력 프롬프트 제외)
     generated_tokens = sequences[0, input_length:]
     response = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
     
@@ -210,7 +208,6 @@ def _first_step_logits_text_only(
     input_ids = input_ids.to(model_device)
     attention_mask = torch.ones_like(input_ids)
     
-    # 입력 길이 저장 (나중에 생성된 부분만 추출하기 위해)
     input_length = input_ids.shape[1]
     
     # Generate directly
@@ -227,7 +224,6 @@ def _first_step_logits_text_only(
         sequences = outputs.sequences if hasattr(outputs, 'sequences') else outputs
         scores = outputs.scores if hasattr(outputs, 'scores') else None
     
-    # 생성된 토큰만 디코딩 (입력 프롬프트 제외)
     generated_tokens = sequences[0, input_length:]
     response = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
     
