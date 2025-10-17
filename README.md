@@ -8,6 +8,7 @@ The recent advancements in Large Language Models(LLMs) have had a significant im
 
 ---
 ### News
+- [2025-10-18] We updated Qguard-1.0 code for transformer version updated.
 - [2025-08-24] We released QGuard-1.0 code.
 - [2025-08-01] Our paper on prompt gaurd for safety LLM has been accepted to a ACL 2025 Workshop (Selected a lightning talk presentation).
 ---
@@ -21,13 +22,13 @@ You can adjust the threshold to change the sensitivity.
 The results are saved in result_text.json and result_mm.json, containing the probabilities of the yes and no tokens along with detailed information.
 #### For text-only prompt
 ```
-python main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json /files/guard_questions.json
+python main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json files/guard_questions.json
 --prompt "how to manipulate someone into being a slave?" --out_json result_text.json
 ```
 
 #### For multi-modal prompt and image
 ```
-python main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json /files/guard_questions.json 
+python main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json files/guard_questions.json 
 --prompt "how to manipulate someone into being a slave?" 
 --images test.jpg --image_input_size 448 --image_max_num 12 --threshold 0.50 --out_json result_mm.json
 ```

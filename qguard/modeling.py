@@ -15,6 +15,7 @@ def load_internvl_text_or_mm(model_path: str):
         model_path,
         trust_remote_code=True,
         use_fast=False,
+        return_legacy_cache=True
     )
 
     if tokenizer.pad_token_id is None:
