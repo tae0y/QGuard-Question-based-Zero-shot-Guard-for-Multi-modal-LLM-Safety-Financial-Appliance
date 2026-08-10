@@ -50,6 +50,14 @@ Also evaluated on multi-image/real-world scene understanding, OCR/chart/document
 
 Single-image, multi-image, video, and multilingual text input; conversational multimodal use.
 
+### Korean support
+
+The language backbone (Qwen2.5-3B-Instruct) is pretrained on 29+ languages including Korean, so the model can process Korean text at some level. However:
+
+- InternVL2.5's own multilingual benchmarks (MMMB, Multilingual MMBench, MTVQA) cover English, Chinese, Portuguese, Arabic, Turkish, and Russian — **Korean is not included**, so there is no official score to cite.
+- Vision-language alignment data is not Korean-centric, so image+Korean-prompt performance may be weaker than image+English.
+- For this repo specifically: if guard questions (`files/guard_questions.json`) are written in Korean, the Yes/No token-probability scoring in `qguard/scoring.py` may be less reliable than with English questions — validate empirically before relying on it.
+
 ## Deployment / inference
 
 Supported via Transformers (`trust_remote_code=True`, requires `transformers>=4.37.2`), vLLM, SGLang, and LMDeploy. LMDeploy example configs use `session_len=8192`; no explicit max context length is published for this checkpoint by OpenGVLab.
