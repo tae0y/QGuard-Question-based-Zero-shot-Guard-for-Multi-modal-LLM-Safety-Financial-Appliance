@@ -41,7 +41,7 @@ filler — that's the entire point of the C0 vs C1 vs C2 comparison (Hypothesis 
 "doesn't know" vs "knows but doesn't use it").
 
 **Decision needed:** after the pilot, read the printed C2 knowledge text
-(logged to stdout and in `results.json`) and sanity-check it's not degenerate
+(logged to stdout and in `results.jsonl`) and sanity-check it's not degenerate
 (empty, off-topic, or a refusal) before committing to the full 501-pair run.
 
 ## 4. C1' control text topic (`experiments/knowledge.py::C1_PRIME_CONTROL_TEXT`)

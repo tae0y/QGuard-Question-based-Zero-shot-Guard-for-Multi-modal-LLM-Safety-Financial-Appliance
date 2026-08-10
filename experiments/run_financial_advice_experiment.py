@@ -50,24 +50,31 @@ def load_financial_advice_prompts() -> List[str]:
 
 def run_all_conditions(
     model, tokenizer, guard_qs: Dict[str, List[str]], prompts: List[str],
-    threshold: float, self_generated_knowledge: str,
+    threshold: float, self_generated_knowledge: str, results_path: str,
 ) -> List[Dict[str, Any]]:
+    """Writes each row to results_path as JSON Lines immediately after it's
+    computed, so a crash/disconnect partway through a long run doesn't lose
+    already-completed rows (this loop can be 1000s of forward passes)."""
     conditions = build_conditions(self_generated_knowledge)
     rows = []
-    for prompt in prompts:
-        for name, cond in conditions.items():
-            augmented = apply_condition(prompt, cond)
-            result = evaluate_prompt_with_pagerank(
-                model, tokenizer, augmented, guard_qs, threshold=threshold,
-            )
-            rows.append({
-                "prompt": prompt,
-                "condition": name,
-                "prediction": result["prediction"],
-                "risk_score": result["risk_score"],
-                "questions": result["questions"],
-                "label": 1,  # financial_advice subset is entirely harmful
-            })
+    with open(results_path, "a", encoding="utf-8") as f:
+        for prompt in prompts:
+            for name, cond in conditions.items():
+                augmented = apply_condition(prompt, cond)
+                result = evaluate_prompt_with_pagerank(
+                    model, tokenizer, augmented, guard_qs, threshold=threshold,
+                )
+                row = {
+                    "prompt": prompt,
+                    "condition": name,
+                    "prediction": result["prediction"],
+                    "risk_score": result["risk_score"],
+                    "questions": result["questions"],
+                    "label": 1,  # financial_advice subset is entirely harmful
+                }
+                rows.append(row)
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                f.flush()
     return rows
 
 
@@ -105,10 +112,8 @@ def main():
     self_knowledge = generate_self_knowledge(model, tokenizer)
     print(f"C2 self-generated knowledge: {self_knowledge[:200]}...")
 
-    results = run_all_conditions(model, tokenizer, guard_qs, prompts, cfg.threshold, self_knowledge)
-    results_path = os.path.join(args.out_dir, "results.json")
-    with open(results_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+    results_path = os.path.join(args.out_dir, "results.jsonl")
+    results = run_all_conditions(model, tokenizer, guard_qs, prompts, cfg.threshold, self_knowledge, results_path)
     print(f"Saved {len(results)} rows -> {results_path}")
 
     # --- Hypothesis 1 step 1-2: false negatives + failure-type split (C0) ---

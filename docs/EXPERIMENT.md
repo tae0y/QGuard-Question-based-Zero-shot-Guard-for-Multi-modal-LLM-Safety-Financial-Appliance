@@ -85,7 +85,7 @@ uv run experiments/run_financial_advice_experiment.py \
 2. `experiments/results/full_run/threshold_sweep` (inside the same file) —
    whether the precision/recall tradeoff is well-covered by the default
    0.05–0.95 grid, or needs finer resolution somewhere (ADDITIONAL-EXPERIMENT.md item 7).
-3. C0 vs C1 vs C2 vs C1' recall/risk_score comparison from `results.json` —
+3. C0 vs C1 vs C2 vs C1' recall/risk_score comparison from `results.jsonl` —
    this is the actual answer to Hypothesis 1 ("doesn't know" vs "knows but
    doesn't use it" vs "length alone helps").
 4. If `--run_hypothesis3` was used: `hypothesis3_results.json`'s
