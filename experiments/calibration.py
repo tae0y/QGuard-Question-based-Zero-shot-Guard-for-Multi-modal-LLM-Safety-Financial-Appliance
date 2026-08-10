@@ -6,10 +6,10 @@ produces per guard question — no change to QGuard's own scoring/graph/PageRank
 
 See: 100 Project/.../~260811 실험설계및수행 리뷰.md §2 가설2
 """
+import os
 from typing import Dict, List
 
-import matplotlib
-matplotlib.use("Agg")  # script/headless run; Colab's inline backend isn't installed in this venv
+os.environ["MPLBACKEND"] = "Agg"  # script/headless run; Colab's inline backend isn't installed in this venv
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
