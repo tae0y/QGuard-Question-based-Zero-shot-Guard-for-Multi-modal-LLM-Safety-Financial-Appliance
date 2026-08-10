@@ -88,7 +88,7 @@ uv run experiments/run_financial_advice_experiment.py \
 3. C0 vs C1 vs C2 vs C1' recall/risk_score comparison from `results.jsonl` —
    this is the actual answer to Hypothesis 1 ("doesn't know" vs "knows but
    doesn't use it" vs "length alone helps").
-4. If `--run_hypothesis3` was used: `hypothesis3_results.json`'s
+4. If `--run_hypothesis3` was used: `hypothesis3_results.jsonl`'s
    `cross_validation.agreement_fraction` values — low agreement across most
    cases means attention scores shouldn't be cited alone in the writeup
    (per the Jain & Wallace caveat already noted in the review doc).

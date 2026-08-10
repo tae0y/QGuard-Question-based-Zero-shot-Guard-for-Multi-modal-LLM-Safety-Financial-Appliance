@@ -158,19 +158,22 @@ def main():
     if args.run_hypothesis3:
         extreme_idx = np.where((yes_probs < 0.01) | (yes_probs > 0.99))[0]
         sample_idx = extreme_idx[: args.hypothesis3_sample_size]
+        h3_path = os.path.join(args.out_dir, "hypothesis3_results.jsonl")
         h3_rows = []
-        for idx in sample_idx:
-            row = c0_rows[idx]
-            first_q = row["questions"][0]["question"] if row["questions"] else None
-            if not first_q:
-                continue
-            occ = occlusion_scores(model, tokenizer, first_q, row["prompt"], yes_ids, no_ids)
-            attn = attention_scores(model, tokenizer, first_q, row["prompt"])
-            xval = cross_validate(occ, attn)
-            h3_rows.append({"prompt": row["prompt"], "occlusion": occ, "attention": attn, "cross_validation": xval})
-        with open(os.path.join(args.out_dir, "hypothesis3_results.json"), "w") as f:
-            json.dump(h3_rows, f, ensure_ascii=False, indent=2)
-        print(f"Hypothesis 3: analyzed {len(h3_rows)} extreme-skew cases")
+        with open(h3_path, "a", encoding="utf-8") as f:
+            for idx in sample_idx:
+                row = c0_rows[idx]
+                first_q = row["questions"][0]["question"] if row["questions"] else None
+                if not first_q:
+                    continue
+                occ = occlusion_scores(model, tokenizer, first_q, row["prompt"], yes_ids, no_ids)
+                attn = attention_scores(model, tokenizer, first_q, row["prompt"])
+                xval = cross_validate(occ, attn)
+                h3_row = {"prompt": row["prompt"], "occlusion": occ, "attention": attn, "cross_validation": xval}
+                h3_rows.append(h3_row)
+                f.write(json.dumps(h3_row, ensure_ascii=False) + "\n")
+                f.flush()
+        print(f"Hypothesis 3: analyzed {len(h3_rows)} extreme-skew cases -> {h3_path}")
 
     print(f"\nAll outputs written to {args.out_dir}")
 

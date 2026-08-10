@@ -60,7 +60,7 @@ uv run experiments/run_financial_advice_experiment.py \
 1. `experiments/results/full_run/hypothesis2_results.json`의 `best_temperature`, `corp_before`, `corp_after`. `dsc`가 보정 전후로 거의 안 움직였는데 `temperature_sweep`의 `recall`은 움직였다면, 김기환 멘토가 우려한 "임계값 이동 착시"가 확인된 것이므로 글쓰기에서 명시적으로 짚어야 합니다.
 2. 같은 파일 안의 `threshold_sweep` — 기본 0.05~0.95 그리드가 정밀도·재현율 트레이드오프 구간을 충분히 담고 있는지, 아니면 특정 구간에 더 촘촘한 해상도가 필요한지(ADDITIONAL-EXPERIMENT-ko.md 7번 항목).
 3. `results.jsonl`에서 뽑은 C0 대 C1 대 C2 대 C1'의 재현율·risk_score 비교 — 이것이 가설1("몰라서 못 푸는지" 대 "아는데 못 쓰는지" 대 "길이만으로도 도움이 되는지")에 대한 실제 답입니다.
-4. `--run_hypothesis3`를 사용했다면 `hypothesis3_results.json`의 `cross_validation.agreement_fraction` 값들 — 대부분 사례에서 일치도가 낮다면, 리뷰 문서가 이미 명시한 Jain & Wallace의 경고에 따라 attention 점수만 단독으로 글에 인용하면 안 됩니다.
+4. `--run_hypothesis3`를 사용했다면 `hypothesis3_results.jsonl`의 `cross_validation.agreement_fraction` 값들 — 대부분 사례에서 일치도가 낮다면, 리뷰 문서가 이미 명시한 Jain & Wallace의 경고에 따라 attention 점수만 단독으로 글에 인용하면 안 됩니다.
 
 ## 5단계 — 재현 여부 확인
 
