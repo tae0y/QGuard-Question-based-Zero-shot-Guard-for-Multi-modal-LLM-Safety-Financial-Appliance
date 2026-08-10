@@ -41,5 +41,8 @@ def classify_failure_type(prompt: str) -> str:
 
 def classify_false_negatives(fn_df: pd.DataFrame) -> pd.DataFrame:
     fn_df = fn_df.copy()
+    if fn_df.empty:
+        fn_df["failure_type"] = pd.Series(dtype=object)
+        return fn_df
     fn_df["failure_type"] = fn_df["prompt"].apply(classify_failure_type)
     return fn_df
