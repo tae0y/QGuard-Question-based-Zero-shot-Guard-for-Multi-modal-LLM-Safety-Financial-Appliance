@@ -38,7 +38,7 @@ python main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json file
 ### Customized
 You can customize the guardrail by modifying the **guard_questions.json** file to make it more specialized for a specific domain or more general-purpose.
 Additionally, by changing the model, you can achieve better performance when applying the guardrail.
-In graph.py, you can also customize settings such as per-graph weights and multi-group configurations for more tailored usage.
+In graph.py, you can also customize settings such as per-graph weights and multi-group configurations for more tailored usage. See [PAGERANK.md](PAGERANK.md) for how the filtering algorithm works.
 
 ---
 ### Experiments 

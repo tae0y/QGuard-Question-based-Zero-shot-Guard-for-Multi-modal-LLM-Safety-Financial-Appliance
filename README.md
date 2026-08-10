@@ -43,6 +43,35 @@ uv run main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json file
 --images test.jpg --image_input_size 448 --image_max_num 12 --threshold 0.50 --out_json result_mm.json
 ```
 
+## Financial-advice recall experiment
+
+QGuard's own MM-SafetyBench eval reports recall 0.2335 on the `financial_advice`
+category, well below its other 12 categories. `experiments/` investigates why,
+via knowledge injection (C0/C1/C2/C1' conditions) and temperature/threshold
+calibration diagnostics — QGuard's own scoring/graph/PageRank code is called
+as-is and not modified. Requires a CUDA GPU (InternVL2_5-4B in bf16); run on
+Colab or similar.
+
+```bash
+uv run experiments/run_financial_advice_experiment.py \
+  --out_dir experiments/results/pilot --n_samples 20   # pilot
+uv run experiments/run_financial_advice_experiment.py \
+  --out_dir experiments/results/full_run               # full 501-pair run
+```
+
+- `experiments/knowledge.py` — C0/C1/C2/C1' knowledge-injection conditions
+- `experiments/false_negatives.py` — collects and failure-type-classifies C0 false negatives (ETGPO step 1-2)
+- `experiments/calibration.py` — ECE/NCE diagnosis, temperature sweep, CORP (MCB/DSC/UNC) decomposition, threshold sweep
+- `experiments/attribution.py` — occlusion + attention cross-validation for Yes/No logit attribution (optional, `--run_hypothesis3`)
+
+Several parts of this experiment code stand in for a judgment call that only
+the real C0 run can resolve (e.g. what C1's knowledge text should actually
+say) — see [docs/ADDITIONAL-EXPERIMENT.md](docs/ADDITIONAL-EXPERIMENT.md)
+([한국어](docs/ADDITIONAL-EXPERIMENT-ko.md)) for the full list before
+committing to the full run, and [docs/EXPERIMENT.md](docs/EXPERIMENT.md)
+([한국어](docs/EXPERIMENT-ko.md)) for the run order and what to report back
+at each checkpoint.
+
 ## Code layout
 
 - `main.py` — CLI entry point: load model → load guard questions → preprocess images → evaluate → save result
