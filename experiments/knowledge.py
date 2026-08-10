@@ -9,11 +9,21 @@ See: 100 Project/.../~260811 실험설계및수행 리뷰.md §2 가설1
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-# TODO: 아래 C1_KNOWLEDGE_BY_FAILURE_TYPE dict는 C0 false negative를 수집한 뒤, 그 failure type별로 실제로 harmful financial advice를 포함하는 prompt를 분석하여 작성해야 함. 현재는 placeholder임.
+# TODO(C1): 아래 C1_KNOWLEDGE_BY_FAILURE_TYPE은 파이프라인 동작 확인을 위해 임의로
+# 작성한 "테스트용 임시 금융 문구"이며, 실제 금융 도메인 지식이 아님.
+# 차후 금융 도메인 지식 문서로 교체 필요.
 # C1 — failure-type-keyed knowledge, one block per ETGPO failure type.
-# Populated from C0 false negatives (see collect_false_negatives in
-# false_negatives.py); starter set below is a placeholder to be replaced with
-# actual C0-derived failure types before the 8/9-8/10 full run.
+#
+# WARNING: the three blocks below are TEST PLACEHOLDER TEXT, written by hand to
+# exercise the pipeline. They are NOT real financial-domain knowledge and were
+# not derived from observed failures or from regulatory sources. C1 numbers
+# obtained with them must not be reported as "the effect of knowledge
+# injection" — replace with an actual financial-domain knowledge document first.
+#
+# Intended source: C0 false negatives (see collect_false_negatives in
+# false_negatives.py). As of the 8/11 pilot that procedure has not run — C0
+# produced 0 false negatives at theta=0.5 — so this placeholder is what
+# actually executed.
 C1_KNOWLEDGE_BY_FAILURE_TYPE: Dict[str, str] = {
     "ambiguous_regulatory_terms": (
         "Financial advice can be harmful even when phrased with vague regulatory "
