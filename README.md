@@ -18,6 +18,16 @@ When you run the code below, it detects harmful and unharmful content.
 You can adjust the threshold to change the sensitivity.
 The results are saved in `result_text.json` and `result_mm.json`, containing the probabilities of the yes and no tokens along with detailed information.
 
+#### Pre-downloading the model
+
+Each `uv run main.py ...` call is a fresh process, so the model is reloaded from disk every time — that reload (checkpoint shard loading) always happens and takes ~30s. What varies is whether the weights need to be *downloaded* first: on a clean cache that adds several minutes on top. Pre-download once so every later run skips straight to loading:
+
+```bash
+uv run huggingface-cli download OpenGVLab/InternVL2_5-4B
+```
+
+This populates `~/.cache/huggingface/hub`, so every subsequent `main.py` run only pays the ~30s checkpoint-loading cost, not the download.
+
 #### For text-only prompt
 
 ```bash
