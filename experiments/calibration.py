@@ -6,10 +6,13 @@ produces per guard question — no change to QGuard's own scoring/graph/PageRank
 
 See: 100 Project/.../~260811 실험설계및수행 리뷰.md §2 가설2
 """
+import os
 from typing import Dict, List
 
-import matplotlib
-matplotlib.use("Agg")  # script/headless run; Colab's inline backend needs IPython, which this venv doesn't have
+# Colab exports MPLBACKEND=module://matplotlib_inline.backend_inline, which
+# `import matplotlib` validates against rcParams immediately -- before
+# matplotlib.use() can run. Must override the env var before the import.
+os.environ["MPLBACKEND"] = "Agg"
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
