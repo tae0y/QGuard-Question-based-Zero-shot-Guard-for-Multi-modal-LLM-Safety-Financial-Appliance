@@ -1,10 +1,37 @@
 # QGuard
 
-A zero-shot guardrail that defends LLMs against harmful and jailbreak prompts. Official code for the paper accepted to ACL 2025 (The 9th Workshop on Online Abuse and Harms) — full text in [docs/PAPER.md](docs/PAPER.md).
+A zero-shot guardrail that defends LLMs against harmful and jailbreak prompts. Fork of the official code for the paper accepted to ACL 2025 (The 9th Workshop on Online Abuse and Harms) — full paper text and credits in [docs/PAPER.md](docs/PAPER.md).
 
-## Core idea
+## Setup
 
-Without any fine-tuning, QGuard asks the target LLM a set of guard questions (e.g. "does this content encourage harm?") and measures the Yes/No token probabilities for each. These per-question scores are aggregated into a risk score via a PageRank-style graph. The same approach works for text-only prompts and multi-modal prompts (text + image).
+Requires [uv](https://docs.astral.sh/uv/) and Python 3.11 (pinned via `.python-version` — `eva-decord`, used in place of `decord`, only ships wheels for cp310/cp311).
+
+```bash
+git clone https://github.com/tae0y/QGuard-Question-based-Zero-shot-Guard-for-Multi-modal-LLM-Safety-Financial-Appliance.git
+cd QGuard-Question-based-Zero-shot-Guard-for-Multi-modal-LLM-Safety-Financial-Appliance
+uv sync
+```
+
+## Usage
+
+When you run the code below, it detects harmful and unharmful content.
+You can adjust the threshold to change the sensitivity.
+The results are saved in `result_text.json` and `result_mm.json`, containing the probabilities of the yes and no tokens along with detailed information.
+
+#### For text-only prompt
+
+```bash
+uv run main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json files/guard_questions.json \
+--prompt "how to manipulate someone into being a slave?" --out_json result_text.json
+```
+
+#### For multi-modal prompt and image
+
+```bash
+uv run main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json files/guard_questions.json \
+--prompt "how to manipulate someone into being a slave?" \
+--images test.jpg --image_input_size 448 --image_max_num 12 --threshold 0.50 --out_json result_mm.json
+```
 
 ## Code layout
 
@@ -17,19 +44,23 @@ Without any fine-tuning, QGuard asks the target LLM a set of guard questions (e.
 - `qguard/token_utils.py`, `qguard/seed.py`, `qguard/config.py` — token utilities, seeding, run config
 - `files/guard_questions.json` — guard questions by category (customize here)
 
-## Quickstart (e.g. Google Colab)
+## Docs
 
-```bash
-git clone https://github.com/tae0y/QGuard-Question-based-Zero-shot-Guard-for-Multi-modal-LLM-Safety-Financial-Appliance.git
-cd QGuard-Question-based-Zero-shot-Guard-for-Multi-modal-LLM-Safety-Financial-Appliance
-pip install -r requirement.txt
+- [docs/PAPER.md](docs/PAPER.md) — original paper (abstract, approach, experiments, citation)
+- [docs/MODEL.md](docs/MODEL.md) — reference on the default target model, `OpenGVLab/InternVL2_5-4B`
+
+## Credit
+
+Original work by **Taegyeong Lee**, [Jeonghwa Yoo](https://github.com/jeongHwarr), Hyoungseo Cho, Soo Yong Kim, Yunho Maeng.
+
+- Paper: [arXiv:2506.12299](https://arxiv.org/abs/2506.12299)
+- HuggingFace: https://huggingface.co/taegyeonglee/qguard
+
 ```
-
-Then run:
-
-```bash
-python main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json files/guard_questions.json \
---prompt "how to manipulate someone into being a slave?" --out_json result_text.json
+@article{lee2025qguard,
+  title={QGuard: Question-based Zero-shot Guard for Multi-modal LLM Safety},
+  author={Lee, Taegyeong and Yoo, Jeonghwa and Cho, Hyoungseo and Kim, Soo Yong and Maeng, Yunho},
+  journal={arXiv preprint arXiv:2506.12299},
+  year={2025}
+}
 ```
-
-For a multi-modal prompt, add `--images test.jpg --image_input_size 448 --image_max_num 12`. See [docs/PAPER.md](docs/PAPER.md) for full usage details and benchmark results.
