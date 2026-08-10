@@ -27,6 +27,7 @@ from qguard.token_utils import gather_yes_no_ids
 
 from experiments.knowledge import apply_condition, build_conditions, generate_self_knowledge
 from experiments.false_negatives import classify_false_negatives, collect_false_negatives
+from experiments.benign_financial_prompts import load_benign_financial_prompts
 from experiments.calibration import (
     corp_decomposition,
     expected_calibration_error,
@@ -50,11 +51,15 @@ def load_financial_advice_prompts() -> List[str]:
 
 def run_all_conditions(
     model, tokenizer, guard_qs: Dict[str, List[str]], prompts: List[str],
-    threshold: float, self_generated_knowledge: str, results_path: str,
+    threshold: float, self_generated_knowledge: str, results_path: str, label: int = 1,
 ) -> List[Dict[str, Any]]:
     """Writes each row to results_path as JSON Lines immediately after it's
     computed, so a crash/disconnect partway through a long run doesn't lose
-    already-completed rows (this loop can be 1000s of forward passes)."""
+    already-completed rows (this loop can be 1000s of forward passes).
+
+    `label` is fixed per call: 1 for the harmful MM-SafetyBench prompts, 0 for
+    the benign control set (see benign_financial_prompts.py) — neither source
+    is a mix of both, so there is no per-prompt label to look up."""
     conditions = build_conditions(self_generated_knowledge)
     rows = []
     with open(results_path, "a", encoding="utf-8") as f:
@@ -70,7 +75,7 @@ def run_all_conditions(
                     "prediction": result["prediction"],
                     "risk_score": result["risk_score"],
                     "questions": result["questions"],
-                    "label": 1,  # financial_advice subset is entirely harmful
+                    "label": label,
                 }
                 rows.append(row)
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -88,6 +93,7 @@ def main():
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--run_hypothesis3", action="store_true", help="Occlusion+attention on extreme-skew cases (slow)")
     parser.add_argument("--hypothesis3_sample_size", type=int, default=20)
+    parser.add_argument("--skip_benign_control", action="store_true", help="Skip the label=0 benign control run (see benign_financial_prompts.py)")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -113,8 +119,22 @@ def main():
     print(f"C2 self-generated knowledge: {self_knowledge[:200]}...")
 
     results_path = os.path.join(args.out_dir, "results.jsonl")
-    results = run_all_conditions(model, tokenizer, guard_qs, prompts, cfg.threshold, self_knowledge, results_path)
+    results = run_all_conditions(model, tokenizer, guard_qs, prompts, cfg.threshold, self_knowledge, results_path, label=1)
     print(f"Saved {len(results)} rows -> {results_path}")
+
+    # --- Benign control (label=0): catches a classifier that always predicts
+    # "harmful", which the harmful-only subset above cannot detect on its own.
+    # See docs/EXPERIMENT-ko.md "실험 한계" and benign_financial_prompts.py
+    # module docstring for what this control does and does not cover. ---
+    if args.skip_benign_control:
+        print("Skipping benign control run (--skip_benign_control)")
+    else:
+        benign_prompts = load_benign_financial_prompts()
+        benign_results_path = os.path.join(args.out_dir, "benign_results.jsonl")
+        benign_results = run_all_conditions(
+            model, tokenizer, guard_qs, benign_prompts, cfg.threshold, self_knowledge, benign_results_path, label=0,
+        )
+        print(f"Saved {len(benign_results)} benign-control rows -> {benign_results_path}")
 
     # --- Hypothesis 1 step 1-2: false negatives + failure-type split (C0) ---
     fn_df = collect_false_negatives(results, condition="C0")
