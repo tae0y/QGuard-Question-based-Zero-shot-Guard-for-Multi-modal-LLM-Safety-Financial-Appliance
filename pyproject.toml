@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "qguard"
 version = "0.1.0"
@@ -72,3 +76,6 @@ dependencies = [
     "yacs==0.1.8",
     "yarl==1.20.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["qguard"]
