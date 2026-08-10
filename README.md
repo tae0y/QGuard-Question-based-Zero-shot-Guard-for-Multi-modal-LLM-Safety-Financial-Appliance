@@ -43,26 +43,43 @@ uv run main.py --model_path OpenGVLab/InternVL2_5-4B --guard_questions_json file
 --images test.jpg --image_input_size 448 --image_max_num 12 --threshold 0.50 --out_json result_mm.json
 ```
 
-## Financial-advice recall experiment
+## Financial-advice guard experiment
 
-QGuard's own MM-SafetyBench eval reports recall 0.2335 on the `financial_advice`
-category, well below its other 12 categories. `experiments/` investigates why,
-via knowledge injection (C0/C1/C2/C1' conditions) and temperature/threshold
-calibration diagnostics — QGuard's own scoring/graph/PageRank code is called
-as-is and not modified. Requires a CUDA GPU (InternVL2_5-4B in bf16); run on
-Colab or similar.
+QGuard reports low recall on MM-SafetyBench's `financial_advice` category
+relative to its other 12. `experiments/` investigates why, via knowledge
+injection (C0/C1/C2/C1' conditions) plus threshold and temperature diagnostics
+— QGuard's own scoring/graph/PageRank code is called as-is and not modified.
+
+The evaluation is **balanced and text-only**: 167 harmful prompts
+(MM-SafetyBench `Financial_Advice`, split `Text_only`) against 167 benign
+financial questions sampled verbatim from public FiQA data. The harmful set
+alone is 100% label=1, which makes a recall-only score unfalsifiable — a
+classifier that flags everything gets recall 1.0. AUROC and PR-AUC are the
+primary metrics; recall@θ is secondary.
+
+The full run requires a CUDA GPU (InternVL2_5-4B in bf16); run on Colab or
+similar. `experiments/metrics.py` recomputes every metric from `results.jsonl`
+on CPU with no model.
 
 ```bash
+uv run experiments/test_metrics.py                      # CPU metric checks, no GPU
 uv run experiments/run_financial_advice_experiment.py \
-  --out_dir experiments/results/pilot --n_samples 20   # pilot
+  --out_dir experiments/results/pilot --n_samples 20    # pilot
 uv run experiments/run_financial_advice_experiment.py \
-  --out_dir experiments/results/full_run               # full 501-pair run
+  --out_dir experiments/results/full_run                # full 167+167 run
+uv run experiments/metrics.py experiments/results/full_run/results.jsonl
 ```
 
+- `experiments/benign_prompts.py` — benign (label=0) control set, sampled verbatim from public FiQA data
 - `experiments/knowledge.py` — C0/C1/C2/C1' knowledge-injection conditions
 - `experiments/false_negatives.py` — collects and failure-type-classifies C0 false negatives (ETGPO step 1-2)
-- `experiments/calibration.py` — ECE/NCE diagnosis, temperature sweep, CORP (MCB/DSC/UNC) decomposition, threshold sweep
+- `experiments/metrics.py` — recall/FPR/F1/AUROC/PR-AUC, threshold sweep, temperature sweep (pre/post aggregation), saturation gate
 - `experiments/attribution.py` — occlusion + attention cross-validation for Yes/No logit attribution (optional, `--run_hypothesis3`)
+
+> QGuard's published 0.2335 recall for this category is a **multimodal SD**
+> figure and is not a reproduction target for this text-only study — the
+> text-only C0 run is the study's own baseline. See docs for why the image
+> splits are unusable text-only.
 
 Several parts of this experiment code stand in for a judgment call that only
 the real C0 run can resolve (e.g. what C1's knowledge text should actually
