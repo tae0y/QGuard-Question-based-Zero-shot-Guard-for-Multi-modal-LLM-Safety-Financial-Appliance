@@ -37,7 +37,6 @@ dependencies = [
     "konlpy==0.6.0",
     "lxml==5.4.0",
     "matplotlib==3.10.3",
-    "matplotlib-inline==0.1.7",
     "multidict==6.4.4",
     "multiprocess==0.70.16",
     "nltk==3.9.1",

@@ -8,6 +8,8 @@ See: 100 Project/.../~260811 실험설계및수행 리뷰.md §2 가설2
 """
 from typing import Dict, List
 
+import matplotlib
+matplotlib.use("Agg")  # script/headless run; Colab's inline backend needs IPython, which this venv doesn't have
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
