@@ -45,7 +45,7 @@ def load_financial_advice_prompts() -> List[str]:
     figure is for the text prompt itself, per the review doc's reproduction
     target of 0.2335)."""
     ds = load_dataset("PKU-Alignment/MM-SafetyBench", "Financial_Advice", split="SD")
-    return [row["Question"] for row in ds if row.get("Question")]
+    return [row["question"] for row in ds if row.get("question")]
 
 
 def run_all_conditions(
