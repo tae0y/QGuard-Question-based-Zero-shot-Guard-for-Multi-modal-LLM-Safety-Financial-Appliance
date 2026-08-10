@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Financial-advice recall experiment — C0/C1/C2/C1' x calibration diagnostics.
+"""Financial-advice recall experiment — C0/C1/C2/C1' conditions.
 
 Requires a CUDA GPU (run on Colab or similar) — InternVL2_5-4B is loaded in
 bf16. See docs/EXPERIMENT.md for the full walkthrough and what each flag does.
@@ -27,16 +27,6 @@ from qguard.token_utils import gather_yes_no_ids
 
 from experiments.knowledge import apply_condition, build_conditions, generate_self_knowledge
 from experiments.false_negatives import classify_false_negatives, collect_false_negatives
-from experiments.benign_financial_prompts import load_benign_financial_prompts
-from experiments.calibration import (
-    corp_decomposition,
-    expected_calibration_error,
-    extreme_mass_fraction,
-    normalized_calibration_error,
-    plot_reliability_diagram,
-    temperature_sweep,
-    threshold_sweep,
-)
 from experiments.attribution import attention_scores, cross_validate, occlusion_scores
 
 
@@ -55,11 +45,7 @@ def run_all_conditions(
 ) -> List[Dict[str, Any]]:
     """Writes each row to results_path as JSON Lines immediately after it's
     computed, so a crash/disconnect partway through a long run doesn't lose
-    already-completed rows (this loop can be 1000s of forward passes).
-
-    `label` is fixed per call: 1 for the harmful MM-SafetyBench prompts, 0 for
-    the benign control set (see benign_financial_prompts.py) — neither source
-    is a mix of both, so there is no per-prompt label to look up."""
+    already-completed rows (this loop can be 1000s of forward passes)."""
     conditions = build_conditions(self_generated_knowledge)
     rows = []
     with open(results_path, "a", encoding="utf-8") as f:
@@ -93,7 +79,6 @@ def main():
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--run_hypothesis3", action="store_true", help="Occlusion+attention on extreme-skew cases (slow)")
     parser.add_argument("--hypothesis3_sample_size", type=int, default=20)
-    parser.add_argument("--skip_benign_control", action="store_true", help="Skip the label=0 benign control run (see benign_financial_prompts.py)")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -122,57 +107,14 @@ def main():
     results = run_all_conditions(model, tokenizer, guard_qs, prompts, cfg.threshold, self_knowledge, results_path, label=1)
     print(f"Saved {len(results)} rows -> {results_path}")
 
-    # --- Benign control (label=0): catches a classifier that always predicts
-    # "harmful", which the harmful-only subset above cannot detect on its own.
-    # See docs/EXPERIMENT-ko.md "실험 한계" and benign_financial_prompts.py
-    # module docstring for what this control does and does not cover. ---
-    if args.skip_benign_control:
-        print("Skipping benign control run (--skip_benign_control)")
-    else:
-        benign_prompts = load_benign_financial_prompts()
-        benign_results_path = os.path.join(args.out_dir, "benign_results.jsonl")
-        benign_results = run_all_conditions(
-            model, tokenizer, guard_qs, benign_prompts, cfg.threshold, self_knowledge, benign_results_path, label=0,
-        )
-        print(f"Saved {len(benign_results)} benign-control rows -> {benign_results_path}")
-
     # --- Hypothesis 1 step 1-2: false negatives + failure-type split (C0) ---
     fn_df = collect_false_negatives(results, condition="C0")
     fn_df = classify_false_negatives(fn_df)
     fn_df.to_json(os.path.join(args.out_dir, "c0_false_negatives.json"), orient="records", force_ascii=False, indent=2)
     print(f"C0 false negatives: {len(fn_df)}/{len(prompts)}; failure types:\n{fn_df['failure_type'].value_counts() if len(fn_df) else 'none'}")
 
-    # --- Hypothesis 2 step 1: ECE/NCE pre-diagnosis + reliability diagram (C0) ---
     c0_rows = [r for r in results if r["condition"] == "C0"]
     yes_probs = np.array([r["risk_score"] for r in c0_rows])
-    labels = np.array([r["label"] for r in c0_rows])
-    ece = expected_calibration_error(yes_probs, labels)
-    nce = normalized_calibration_error(yes_probs, labels)
-    extreme_frac = extreme_mass_fraction(yes_probs)
-    print(f"C0 ECE={ece:.4f} NCE={nce:.4f} extreme_mass_fraction={extreme_frac:.4f}")
-    plot_reliability_diagram(yes_probs, labels, out_path=os.path.join(args.out_dir, "reliability_diagram_c0.png"))
-
-    diagnostics = {"ece": ece, "nce": nce, "extreme_mass_fraction": extreme_frac}
-    with open(os.path.join(args.out_dir, "calibration_diagnostics.json"), "w") as f:
-        json.dump(diagnostics, f, indent=2)
-
-    # --- Hypothesis 2 step 2-5: temperature sweep, CORP, threshold sweep ---
-    temp_rows = temperature_sweep(yes_probs, labels)
-    corp_before = corp_decomposition(yes_probs, labels)
-    best_t = min(temp_rows, key=lambda r: r["ece"])["temperature"]
-    from experiments.calibration import apply_temperature
-    corp_after = corp_decomposition(apply_temperature(yes_probs, best_t), labels)
-    thresh_rows = threshold_sweep(yes_probs, labels)
-
-    with open(os.path.join(args.out_dir, "hypothesis2_results.json"), "w") as f:
-        json.dump({
-            "temperature_sweep": temp_rows,
-            "best_temperature": best_t,
-            "corp_before": corp_before,
-            "corp_after": corp_after,
-            "threshold_sweep": thresh_rows,
-        }, f, indent=2)
-    print(f"CORP before: {corp_before}\nCORP after (T={best_t}): {corp_after}")
 
     # --- Hypothesis 3 (optional): occlusion + attention on extreme-skew cases ---
     if args.run_hypothesis3:

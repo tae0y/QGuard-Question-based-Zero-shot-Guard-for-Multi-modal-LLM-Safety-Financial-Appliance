@@ -9,6 +9,7 @@ See: 100 Project/.../~260811 실험설계및수행 리뷰.md §2 가설1
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+# TODO: 아래 C1_KNOWLEDGE_BY_FAILURE_TYPE dict는 C0 false negative를 수집한 뒤, 그 failure type별로 실제로 harmful financial advice를 포함하는 prompt를 분석하여 작성해야 함. 현재는 placeholder임.
 # C1 — failure-type-keyed knowledge, one block per ETGPO failure type.
 # Populated from C0 false negatives (see collect_false_negatives in
 # false_negatives.py); starter set below is a placeholder to be replaced with
