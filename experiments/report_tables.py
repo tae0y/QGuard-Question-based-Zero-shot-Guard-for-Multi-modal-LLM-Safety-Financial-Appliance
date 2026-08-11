@@ -135,23 +135,58 @@ def table_d(rows, limit: int = 15) -> str:
     return "\n".join(lines)
 
 
+def table_e(rows, needle: str) -> str:
+    """Did the added question actually fire? Separates "the question does not
+    respond" from "it responds but PageRank dilutes it" — a single new question
+    among 36 can light up and still not move the final score."""
+    per_cat = defaultdict(list)
+    for r in rows:
+        for q in r["questions"]:
+            if needle.lower() in q["question"].lower():
+                per_cat[(r["category"], r["label"])].append(q["yes_prob"])
+                break
+    if not per_cat:
+        return f"### 표 E — 추가 질문 반응\n\n`{needle}` 를 포함한 질문을 찾지 못했습니다."
+    lines = [f"### 표 E — 추가 질문 반응 (`{needle}`)", "",
+             "| 카테고리 | label | n | 평균 yes_prob | ≥0.5 비율 |", "|---|---:|---:|---:|---:|"]
+    for (c, lab), vals in sorted(per_cat.items(), key=lambda kv: -st.mean(kv[1])):
+        lines.append(f"| {c} | {lab} | {len(vals)} | {st.mean(vals):.3f} "
+                     f"| {sum(v >= 0.5 for v in vals) / len(vals):.3f} |")
+    lines += ["", "판정: harmful(label=1) 조언형 카테고리에서 평균이 높은데 표 B recall이"
+              " 오르지 않았다면, 질문이 아니라 **집계(PageRank 희석)** 가 원인입니다."]
+    return "\n".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("results_dir")
-    ap.add_argument("--table", choices=list("ABCD"), default=None, help="Only this one")
+    ap.add_argument("--table", choices=list("ABCDE"), default=None, help="Only this one")
+    ap.add_argument("--extra_question", default="licensed expert",
+                    help="표 E용: 추가한 질문을 식별할 부분 문자열")
     ap.add_argument("--group_coupling", type=float, default=None, help="Re-score from stored yes_prob")
     args = ap.parse_args()
 
     rows = load_rows(args.results_dir, args.group_coupling)
-    if not any(r["label"] == 0 for r in rows):
-        print("benign 행이 없습니다 — θ를 구할 수 없어 표 A/B/D를 만들 수 없습니다.\n"
-              "러너를 --with_benign 으로 다시 돌리십시오. 표 C는 harmful만으로도 산출됩니다.\n")
-        print(table_c(rows))
-        return
+    has_extra = any(r.get("n_questions", 35) > 35 for r in rows)
 
-    picked = [args.table] if args.table else list("ABCD")
+    if args.table:
+        picked = [args.table]
+    elif not any(r["label"] == 0 for r in rows):
+        # theta needs both classes; C and E are per-question and do not
+        print("benign 행이 없습니다 — θ를 구할 수 없어 표 A/B/D를 만들 수 없습니다.\n"
+              "러너를 --with_benign 으로 다시 돌리십시오.\n")
+        picked = ["C", "E"] if has_extra else ["C"]
+    else:
+        picked = list("ABCDE") if has_extra else list("ABCD")
+    has_benign = any(r["label"] == 0 for r in rows)
     for name in picked:
-        print({"A": table_a, "B": table_b, "C": table_c, "D": table_d}[name](rows))
+        if name in "ABD" and not has_benign:
+            print(f"표 {name}: benign 행이 없어 θ를 구할 수 없습니다 — 생략\n")
+            continue
+        if name == "E":
+            print(table_e(rows, args.extra_question))
+        else:
+            print({"A": table_a, "B": table_b, "C": table_c, "D": table_d}[name](rows))
         print()
 
 
