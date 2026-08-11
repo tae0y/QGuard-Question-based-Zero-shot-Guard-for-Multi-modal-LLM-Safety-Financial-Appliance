@@ -58,7 +58,13 @@ def run_category(
     model, tokenizer, guard_qs: Dict[str, List[str]], category: str,
     threshold: float, out_path: str, n_samples: int = None,
 ) -> int:
-    ds = load_dataset("PKU-Alignment/MM-SafetyBench", category, split="Text_only")
+    # Point at the Text_only parquet directly. Naming the config instead would
+    # pull SD/SD_TYPO/TYPO too — ~60MB of images per category we never open.
+    ds = load_dataset(
+        "parquet",
+        data_files=f"hf://datasets/PKU-Alignment/MM-SafetyBench/data/{category}/Text_only.parquet",
+        split="train",
+    )
     rows = [r for r in ds if r.get("question")]
     if n_samples:
         rows = rows[:n_samples]
