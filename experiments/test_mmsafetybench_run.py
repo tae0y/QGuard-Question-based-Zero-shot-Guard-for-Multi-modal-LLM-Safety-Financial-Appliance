@@ -11,6 +11,7 @@ import tempfile
 import torch
 
 from experiments.run_mmsafetybench_textonly import CATEGORIES, done_ids
+from experiments.sweep_theta import auroc, best_theta, prf
 from qguard.token_utils import yes_no_logits_from_logits, yes_no_probs_from_logits
 
 
@@ -40,8 +41,40 @@ def test_categories_complete():
     assert len(CATEGORIES) == 13 and len(set(CATEGORIES)) == 13
 
 
+def _rows(pairs):
+    return [{"label": l, "risk_score": s, "category": "c"} for l, s in pairs]
+
+
+def test_auroc_known_values():
+    # perfectly separated / perfectly inverted / all-ties
+    assert abs(auroc(_rows([(1, 0.9), (1, 0.8), (0, 0.2), (0, 0.1)])) - 1.0) < 1e-9
+    assert abs(auroc(_rows([(1, 0.1), (1, 0.2), (0, 0.8), (0, 0.9)])) - 0.0) < 1e-9
+    assert abs(auroc(_rows([(1, 0.5), (1, 0.5), (0, 0.5), (0, 0.5)])) - 0.5) < 1e-9
+
+
+def test_best_theta_separates_when_separable():
+    rows = _rows([(1, 0.9), (1, 0.8), (0, 0.2), (0, 0.1)])
+    theta, p, r, f1 = best_theta(rows)
+    assert f1 == 1.0 and 0.2 <= theta < 0.8, (theta, f1)
+
+
+def test_prf_threshold_is_strict_greater():
+    # a sample sitting exactly on theta must NOT be flagged (rule is `> theta`)
+    assert prf(_rows([(1, 0.5)]), 0.5)[1] == 0.0
+    assert prf(_rows([(1, 0.5)]), 0.4999)[1] == 1.0
+
+
+def test_auroc_is_nan_without_both_classes():
+    import math
+    assert math.isnan(auroc(_rows([(1, 0.9), (1, 0.8)])))
+
+
 if __name__ == "__main__":
     test_done_ids_survives_truncated_line()
     test_probs_match_logits()
     test_categories_complete()
+    test_auroc_known_values()
+    test_best_theta_separates_when_separable()
+    test_prf_threshold_is_strict_greater()
+    test_auroc_is_nan_without_both_classes()
     print("ok")

@@ -30,6 +30,8 @@ from qguard.modeling import load_internvl_text_or_mm
 from qguard.pipeline import evaluate_prompt_with_pagerank
 from qguard.seed import set_seed
 
+from experiments.mminstruct_benign import load_mminstruct_benign
+
 # https://huggingface.co/api/datasets/PKU-Alignment/MM-SafetyBench — every
 # config carries the same four splits; Text_only is the only image-free one.
 CATEGORIES = [
@@ -54,11 +56,7 @@ def done_ids(path: str) -> Set[str]:
     return seen
 
 
-def run_category(
-    model, tokenizer, guard_qs: Dict[str, List[str]], category: str,
-    threshold: float, out_path: str, n_samples: int = None,
-    group_coupling: float = 1.0, intra_group_q_coupling: float = 0.3,
-) -> int:
+def load_category(category: str, n_samples: int = None) -> List[Dict[str, Any]]:
     # Point at the Text_only parquet directly. Naming the config instead would
     # pull SD/SD_TYPO/TYPO too — ~60MB of images per category we never open.
     ds = load_dataset(
@@ -69,25 +67,33 @@ def run_category(
     rows = [r for r in ds if r.get("question")]
     if n_samples:
         rows = rows[:n_samples]
+    # every MM-SafetyBench row is an unsafe prompt
+    return [{"category": category, "row_id": str(r.get("id", i)), "prompt": r["question"], "label": 1}
+            for i, r in enumerate(rows)]
 
+
+def run_prompts(
+    model, tokenizer, guard_qs: Dict[str, List[str]], items: List[Dict[str, Any]],
+    threshold: float, out_path: str,
+    group_coupling: float = 1.0, intra_group_q_coupling: float = 0.3,
+) -> int:
+    """Score each item and append to out_path. Items carry their own
+    row_id/label/category, so harmful and benign run through one code path —
+    they must see identical guard questions and couplings or theta is meaningless."""
     skip = done_ids(out_path)
     written = 0
     with open(out_path, "a", encoding="utf-8") as f:
-        for i, row in enumerate(rows):
-            row_id = str(row.get("id", i))
-            if row_id in skip:
+        for item in items:
+            if item["row_id"] in skip:
                 continue
             t0 = time.time()
             result = evaluate_prompt_with_pagerank(
-                model, tokenizer, row["question"], guard_qs, threshold=threshold,
+                model, tokenizer, item["prompt"], guard_qs, threshold=threshold,
                 group_coupling=group_coupling,
                 intra_group_q_coupling=intra_group_q_coupling,
             )
             f.write(json.dumps({
-                "category": category,
-                "row_id": row_id,
-                "prompt": row["question"],
-                "label": 1,  # every MM-SafetyBench row is an unsafe prompt
+                **item,
                 "threshold": threshold,
                 "group_coupling": group_coupling,
                 "intra_group_q_coupling": intra_group_q_coupling,
@@ -116,6 +122,11 @@ def main():
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--categories", nargs="+", default=CATEGORIES)
     parser.add_argument("--n_samples", type=int, default=None, help="Per-category cap; omit for the full split")
+    parser.add_argument("--with_benign", action="store_true",
+                        help="Also score MMInstruct benign (label=0) — required before theta can be swept")
+    parser.add_argument("--skip_harmful", action="store_true", help="Benign only (run the two halves in separate sessions)")
+    parser.add_argument("--n_benign_caption", type=int, default=901, help="Paper Sec 4.1.1: 901")
+    parser.add_argument("--n_benign_qa", type=int, default=1100, help="Paper Sec 4.1.1: 1100")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -132,12 +143,28 @@ def main():
     with open(os.path.join(args.out_dir, "run_config.json"), "w", encoding="utf-8") as f:
         json.dump({**vars(args), "n_guard_questions": sum(len(v) for v in guard_qs.values())}, f, indent=2)
 
-    for cat in args.categories:
-        out_path = os.path.join(args.out_dir, f"{cat}.jsonl")
-        n = run_category(model, tokenizer, guard_qs, cat, cfg.threshold, out_path, args.n_samples,
-                         group_coupling=args.group_coupling,
-                         intra_group_q_coupling=args.intra_group_q_coupling)
-        print(f"{cat}: +{n} rows -> {out_path}", flush=True)
+    couplings = dict(group_coupling=args.group_coupling,
+                     intra_group_q_coupling=args.intra_group_q_coupling)
+
+    if not args.skip_harmful:
+        for cat in args.categories:
+            out_path = os.path.join(args.out_dir, f"{cat}.jsonl")
+            items = load_category(cat, args.n_samples)
+            n = run_prompts(model, tokenizer, guard_qs, items, cfg.threshold, out_path, **couplings)
+            print(f"{cat}: +{n} rows -> {out_path}", flush=True)
+
+    if args.with_benign:
+        n_cap, n_qa = args.n_benign_caption, args.n_benign_qa
+        if args.n_samples:  # pilot: keep the benign half the same size as the harmful half
+            n_cap = n_qa = args.n_samples * len(args.categories) // 2
+        benign = load_mminstruct_benign(n_caption=n_cap, n_qa=n_qa, seed=cfg.seed)
+        for task in ("caption", "qa"):
+            items = [{"category": f"benign_{b['scenario']}", "row_id": f"{task}:{i}",
+                      "prompt": b["prompt"], "label": 0, "task": task, "scenario": b["scenario"]}
+                     for i, b in enumerate(benign) if b["task"] == task]
+            out_path = os.path.join(args.out_dir, f"benign_{task}.jsonl")
+            n = run_prompts(model, tokenizer, guard_qs, items, cfg.threshold, out_path, **couplings)
+            print(f"benign_{task}: +{n} rows -> {out_path}", flush=True)
 
     print(f"\nDone -> {args.out_dir}")
 
