@@ -21,6 +21,8 @@ def evaluate_prompt_with_pagerank(
     allowed_groups: Iterable[str] = DEFAULT_ALLOWED_GROUPS,
     threshold: float = 0.50,
     images_tensor: Optional[torch.Tensor] = None,
+    group_coupling: float = 1.0,
+    intra_group_q_coupling: float = 0.3,
 ) -> Dict[str, Any]:
     yes_ids, no_ids = gather_yes_no_ids(tokenizer)
 
@@ -39,7 +41,11 @@ def evaluate_prompt_with_pagerank(
                 torch.cuda.empty_cache()
                 gc.collect()
 
-    G = build_graph_from_results(per_q, group_by)
+    G = build_graph_from_results(
+        per_q, group_by,
+        group_coupling=group_coupling,
+        intra_group_q_coupling=intra_group_q_coupling,
+    )
     risk = pagerank_risk_score(G)
     pred = "harmful" if risk > threshold else "unharmful"
 

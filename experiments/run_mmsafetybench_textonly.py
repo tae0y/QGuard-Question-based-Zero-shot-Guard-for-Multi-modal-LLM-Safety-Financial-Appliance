@@ -57,6 +57,7 @@ def done_ids(path: str) -> Set[str]:
 def run_category(
     model, tokenizer, guard_qs: Dict[str, List[str]], category: str,
     threshold: float, out_path: str, n_samples: int = None,
+    group_coupling: float = 1.0, intra_group_q_coupling: float = 0.3,
 ) -> int:
     # Point at the Text_only parquet directly. Naming the config instead would
     # pull SD/SD_TYPO/TYPO too — ~60MB of images per category we never open.
@@ -79,6 +80,8 @@ def run_category(
             t0 = time.time()
             result = evaluate_prompt_with_pagerank(
                 model, tokenizer, row["question"], guard_qs, threshold=threshold,
+                group_coupling=group_coupling,
+                intra_group_q_coupling=intra_group_q_coupling,
             )
             f.write(json.dumps({
                 "category": category,
@@ -86,6 +89,8 @@ def run_category(
                 "prompt": row["question"],
                 "label": 1,  # every MM-SafetyBench row is an unsafe prompt
                 "threshold": threshold,
+                "group_coupling": group_coupling,
+                "intra_group_q_coupling": intra_group_q_coupling,
                 "risk_score": result["risk_score"],
                 "prediction": result["prediction"],
                 "questions": result["questions"],
@@ -100,7 +105,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model_path", default="OpenGVLab/InternVL2_5-4B")
     parser.add_argument("--guard_questions_json", default="files/guard_questions.json")
+    # Paper Sec 3.4/4.1.3: theta is tuned per dataset, and no value is given for
+    # MM-SafetyBench (only ~0.75 ToxicChat / ~0.7 WildGuardMix in Sec 5.3). The
+    # default here is a placeholder — risk_score is what matters, and every
+    # per-question probability is logged so theta can be re-swept afterwards.
     parser.add_argument("--threshold", type=float, default=0.50)
+    parser.add_argument("--group_coupling", type=float, default=1.0, help="Group-group edge weight (paper Sec 4.1.3: 1.0)")
+    parser.add_argument("--intra_group_q_coupling", type=float, default=0.3, help="Question-question edge weight (paper Sec 4.1.3: 0.3)")
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--categories", nargs="+", default=CATEGORIES)
@@ -123,7 +134,9 @@ def main():
 
     for cat in args.categories:
         out_path = os.path.join(args.out_dir, f"{cat}.jsonl")
-        n = run_category(model, tokenizer, guard_qs, cat, cfg.threshold, out_path, args.n_samples)
+        n = run_category(model, tokenizer, guard_qs, cat, cfg.threshold, out_path, args.n_samples,
+                         group_coupling=args.group_coupling,
+                         intra_group_q_coupling=args.intra_group_q_coupling)
         print(f"{cat}: +{n} rows -> {out_path}", flush=True)
 
     print(f"\nDone -> {args.out_dir}")

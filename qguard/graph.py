@@ -5,7 +5,7 @@ import networkx as nx
 def build_graph_from_results(
     question_results: Iterable[Dict],
     group_by_category: Dict[str, str],
-    group_coupling: float = 0.1,
+    group_coupling: float = 1.0,  # paper Sec 4.1.3; the 0.1 in Eq. for w_{g_i g_j} is the no-similarity fallback
     intra_group_q_coupling: float = 0.3,
 ) -> nx.DiGraph:
     G = nx.DiGraph()
