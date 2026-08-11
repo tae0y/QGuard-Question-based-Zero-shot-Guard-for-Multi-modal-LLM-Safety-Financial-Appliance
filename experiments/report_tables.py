@@ -49,6 +49,19 @@ def table_a(rows) -> str:
     return "\n".join(out)
 
 
+def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple:
+    """Wilson score interval — holds up near 0 and 1, where the normal
+    approximation runs off the end of [0,1]. Financial_Advice recall may well
+    sit near 0.2 with n=167, so that matters here."""
+    if not n:
+        return (float("nan"), float("nan"))
+    p = k / n
+    d = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / d
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / d
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
 def table_b(rows) -> str:
     theta = best_theta(rows)[0]
     cats = defaultdict(list)
@@ -56,13 +69,14 @@ def table_b(rows) -> str:
         if r["label"] == 1:
             cats[r["category"]].append(r)
     lines = [f"### 표 B — 카테고리별 recall (θ={theta:.4f} 고정)", "",
-             "| 카테고리 | n | recall | risk_score 중앙값 | 논문(멀티모달) |",
-             "|---|---:|---:|---:|---:|"]
+             "| 카테고리 | n | recall | 95% CI | risk_score 중앙값 | 논문(멀티모달) |",
+             "|---|---:|---:|---:|---:|---:|"]
     for c, rs in sorted(cats.items(), key=lambda kv: -sum(x["risk_score"] > theta for x in kv[1]) / len(kv[1])):
-        rec = sum(x["risk_score"] > theta for x in rs) / len(rs)
+        hit = sum(x["risk_score"] > theta for x in rs)
+        lo, hi = wilson_ci(hit, len(rs))
         med = st.median(x["risk_score"] for x in rs)
         paper = f"{PAPER_RECALL[c]:.4f}" if c in PAPER_RECALL else "—"
-        lines.append(f"| {c} | {len(rs)} | {rec:.4f} | {med:.4f} | {paper} |")
+        lines.append(f"| {c} | {len(rs)} | {hit / len(rs):.4f} | {lo:.3f}–{hi:.3f} | {med:.4f} | {paper} |")
     return "\n".join(lines)
 
 

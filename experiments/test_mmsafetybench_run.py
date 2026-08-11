@@ -69,6 +69,16 @@ def test_auroc_is_nan_without_both_classes():
     assert math.isnan(auroc(_rows([(1, 0.9), (1, 0.8)])))
 
 
+def test_wilson_ci_stays_in_range_and_brackets_p():
+    from experiments.report_tables import wilson_ci
+    # never escapes [0,1], even at the extremes where the normal approx does
+    for k, n in [(0, 10), (10, 10), (1, 167), (33, 167)]:
+        lo, hi = wilson_ci(k, n)
+        assert 0.0 <= lo <= k / n <= hi <= 1.0, (k, n, lo, hi)
+    # a bigger sample gives a tighter interval
+    assert (wilson_ci(50, 100)[1] - wilson_ci(50, 100)[0]) > (wilson_ci(500, 1000)[1] - wilson_ci(500, 1000)[0])
+
+
 if __name__ == "__main__":
     test_done_ids_survives_truncated_line()
     test_probs_match_logits()
@@ -77,4 +87,5 @@ if __name__ == "__main__":
     test_best_theta_separates_when_separable()
     test_prf_threshold_is_strict_greater()
     test_auroc_is_nan_without_both_classes()
+    test_wilson_ci_stays_in_range_and_brackets_p()
     print("ok")
