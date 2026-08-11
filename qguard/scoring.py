@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Tuple, Optional
 import torch
-from .token_utils import yes_no_probs_from_logits
+from .token_utils import yes_no_logits_from_logits, yes_no_probs_from_logits
 
 def _model_device_dtype(model):
     try:
@@ -254,10 +254,13 @@ def score_guard_question_yes_prob(
     else:
         step0, decoded = _first_step_logits_text_only(model, tokenizer, q_full, max_new_tokens=4)
 
+    y_logit, n_logit = yes_no_logits_from_logits(step0, yes_ids, no_ids)
     y_prob, n_prob = yes_no_probs_from_logits(step0, yes_ids, no_ids)
 
     return {
         "question": q_full,
+        "yes_logit": y_logit,
+        "no_logit": n_logit,
         "yes_prob": y_prob,
         "no_prob": n_prob,
         "response": decoded,

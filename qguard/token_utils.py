@@ -17,11 +17,19 @@ def gather_yes_no_ids(tok) -> Tuple[List[int], List[int]]:
     return yes_ids, no_ids
 
 
-def yes_no_probs_from_logits(
+def yes_no_logits_from_logits(
     logits_step0: torch.Tensor, yes_ids: List[int], no_ids: List[int]
 ) -> Tuple[float, float]:
+    """Pre-softmax logsumexp over the Yes / No token variants."""
     logits_step0 = logits_step0.float()
     y = torch.logsumexp(logits_step0[yes_ids], dim=0)
     n = torch.logsumexp(logits_step0[no_ids],  dim=0)
-    probs = torch.softmax(torch.stack([y, n]), dim=0)
+    return float(y.item()), float(n.item())
+
+
+def yes_no_probs_from_logits(
+    logits_step0: torch.Tensor, yes_ids: List[int], no_ids: List[int]
+) -> Tuple[float, float]:
+    y, n = yes_no_logits_from_logits(logits_step0, yes_ids, no_ids)
+    probs = torch.softmax(torch.tensor([y, n]), dim=0)
     return float(probs[0].item()), float(probs[1].item())
