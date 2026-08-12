@@ -20,6 +20,13 @@ Two deviations from the paper, both unavoidable and both recorded here:
    stripped and the sentence is kept verbatim. That makes these *easy*
    negatives, which biases theta low. The paper ran multi-modal and had the
    image; we cannot. See `260812 MMInstruct benign 세트 추가 설계.md` §4.
+
+3. The design doc assumed 20(caption)*50=1000 >= 901 unique prompts would
+   always be reachable via the per-domain cap. In practice many domains are
+   near-boilerplate ("describe this image") and collapse under exact-text
+   dedup well below 50 unique prompts/domain, so the pool can fall short of
+   the paper's target. `_sample_task` uses whatever the pool holds instead of
+   raising, and the actual counts used are written to run_config.json.
 """
 import random
 from typing import Any, Dict, List
@@ -71,7 +78,13 @@ def _sample_task(task: str, domains: List[str], n: int, cap: int, seed: int) -> 
         pool += [{"prompt": p, "task": task, "scenario": domain, "label": 0} for p in picked]
 
     if n > len(pool):
-        raise ValueError(f"{task}: requested n={n} but pool holds only {len(pool)}")
+        # Deviation 3 (see module docstring): per-domain pools are mostly
+        # boilerplate ("describe this image") that collapses hard under exact-
+        # text dedup, so cap*len(domains) overstates what's actually unique.
+        # Use everything available instead of crashing; actual count goes to
+        # the caller so it lands in run_config.json.
+        print(f"WARNING: {task}: requested n={n} but pool holds only {len(pool)} unique prompts; using all {len(pool)}")
+        n = len(pool)
     return random.Random(f"{seed}:{task}").sample(pool, n)
 
 

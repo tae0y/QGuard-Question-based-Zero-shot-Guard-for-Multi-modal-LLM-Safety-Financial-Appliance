@@ -158,13 +158,18 @@ def main():
         if args.n_samples:  # pilot: keep the benign half the same size as the harmful half
             n_cap = n_qa = args.n_samples * len(args.categories) // 2
         benign = load_mminstruct_benign(n_caption=n_cap, n_qa=n_qa, seed=cfg.seed)
+        actual_counts = {}
         for task in ("caption", "qa"):
             items = [{"category": f"benign_{b['scenario']}", "row_id": f"{task}:{i}",
                       "prompt": b["prompt"], "label": 0, "task": task, "scenario": b["scenario"]}
                      for i, b in enumerate(benign) if b["task"] == task]
+            actual_counts[f"n_benign_{task}_actual"] = len(items)
             out_path = os.path.join(args.out_dir, f"benign_{task}.jsonl")
             n = run_prompts(model, tokenizer, guard_qs, items, cfg.threshold, out_path, **couplings)
             print(f"benign_{task}: +{n} rows -> {out_path}", flush=True)
+        with open(os.path.join(args.out_dir, "run_config.json"), "w", encoding="utf-8") as f:
+            json.dump({**vars(args), "n_guard_questions": sum(len(v) for v in guard_qs.values()),
+                       **actual_counts}, f, indent=2)
 
     print(f"\nDone -> {args.out_dir}")
 
