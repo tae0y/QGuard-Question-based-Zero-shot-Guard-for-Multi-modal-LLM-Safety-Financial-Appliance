@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
-"""Diversity check for every benign source — how much of each pool is
-distinct text vs. the same sentence repeated.
+"""Diversity check for the benign sources actually in use (MMInstruct QA,
+FiQA) — how much of each pool is distinct text vs. the same sentence
+repeated.
 
 Written after `benign_caption.jsonl` (MMInstruct caption task) turned out to
 be ~20-30 "describe this image" templates repeated across domains once the
-`<image>` token is stripped for text-only scoring. QA and FiQA looked fine on
-manual spot-checks; this makes that check repeatable and writes the numbers
-to a file instead of a terminal that scrolls away.
+`<image>` token is stripped for text-only scoring — confirmed here and led
+to dropping the caption task entirely (see mminstruct_benign.py deviation 4).
+QA and FiQA measured fine on the same check, which is why they're what's
+actually used now.
 
 Usage:
   uv run experiments/inspect_benign_pools.py --out_path benign_pool_diversity.md
 """
 import argparse
 from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from datasets import load_dataset
 
 from experiments.benign_prompts import BENIGN_DATASET, BENIGN_FIELD, BENIGN_SPLIT
-from experiments.mminstruct_benign import CAPTION_DOMAINS, QA_DOMAINS, REPO, _prompt_of
+from experiments.mminstruct_benign import QA_DOMAINS, REPO, _prompt_of
 
 
 def domain_stats(task: str, domain: str, top_n: int = 5) -> Dict:
@@ -62,14 +64,12 @@ def main():
     parser.add_argument("--top_n", type=int, default=5)
     args = parser.parse_args()
 
-    caption_rows = [domain_stats("caption", d, args.top_n) for d in CAPTION_DOMAINS]
     qa_rows = [domain_stats("qa", d, args.top_n) for d in QA_DOMAINS]
     fiqa = fiqa_stats(args.top_n)
 
     sections = [
         "# Benign pool diversity report",
         "",
-        render_task_section("MMInstruct caption", caption_rows),
         render_task_section("MMInstruct qa", qa_rows),
         "## FiQA",
         "",

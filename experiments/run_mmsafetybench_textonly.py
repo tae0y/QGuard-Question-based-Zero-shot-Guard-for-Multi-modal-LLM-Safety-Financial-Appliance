@@ -12,6 +12,14 @@ decoded token, plus the PageRank risk score, threshold and prediction.
 Resumable: rows already present in a category file are skipped, so a Colab
 disconnect costs only the row in flight.
 
+Benign set (--with_benign) is MMInstruct QA + FiQA, not the paper's
+caption+QA split — decided 2026-08-18 after the caption task turned out to
+collapse to ~20-30 boilerplate templates once text-only (see
+`mminstruct_benign.py` deviation 4). Composition matches the harmful set 1:1
+and weights FiQA (financial-domain benign) by the harmful set's own
+Financial_Advice+EconomicHarm share, so the benign class isn't skewed
+away from the categories this study cares about most. See ECONOMIC_RATIO.
+
 Usage (Colab, T4/L4/A100):
   uv run experiments/run_mmsafetybench_textonly.py \
     --out_dir "/content/drive/MyDrive/qguard_results/mmsafety_full"
@@ -30,7 +38,8 @@ from qguard.modeling import load_internvl_text_or_mm
 from qguard.pipeline import evaluate_prompt_with_pagerank
 from qguard.seed import set_seed
 
-from experiments.mminstruct_benign import load_mminstruct_benign
+from experiments.benign_prompts import load_benign_prompts
+from experiments.mminstruct_benign import load_mminstruct_qa_benign
 
 # https://huggingface.co/api/datasets/PKU-Alignment/MM-SafetyBench — every
 # config carries the same four splits; Text_only is the only image-free one.
@@ -40,6 +49,15 @@ CATEGORIES = [
     "Malware_Generation", "Physical_Harm", "Political_Lobbying",
     "Privacy_Violence", "Sex",
 ]
+
+# Measured 2026-08-12 from the full Text_only split: EconomicHarm=122,
+# Financial_Advice=167, all categories combined=1680. Both categories are
+# economic-domain content (EconomicHarm: illicit finance schemes;
+# Financial_Advice: personal-finance guidance) — decided 2026-08-18 to count
+# both, not just Financial_Advice, when weighting the benign mix.
+HARMFUL_TOTAL = 1680
+ECONOMIC_HARMFUL = 122 + 167
+ECONOMIC_RATIO = ECONOMIC_HARMFUL / HARMFUL_TOTAL
 
 
 def done_ids(path: str) -> Set[str]:
@@ -123,10 +141,12 @@ def main():
     parser.add_argument("--categories", nargs="+", default=CATEGORIES)
     parser.add_argument("--n_samples", type=int, default=None, help="Per-category cap; omit for the full split")
     parser.add_argument("--with_benign", action="store_true",
-                        help="Also score MMInstruct benign (label=0) — required before theta can be swept")
+                        help="Also score benign (label=0): MMInstruct QA + FiQA — required before theta can be swept")
     parser.add_argument("--skip_harmful", action="store_true", help="Benign only (run the two halves in separate sessions)")
-    parser.add_argument("--n_benign_caption", type=int, default=901, help="Paper Sec 4.1.1: 901")
-    parser.add_argument("--n_benign_qa", type=int, default=1100, help="Paper Sec 4.1.1: 1100")
+    parser.add_argument("--n_benign_total", type=int, default=HARMFUL_TOTAL,
+                        help="Total benign count, split into FiQA/QA by ECONOMIC_RATIO. Default matches harmful 1:1.")
+    parser.add_argument("--per_scenario_cap", type=int, default=61,
+                        help="MMInstruct QA: max unique prompts per domain (23 domains * 61 >= default n_qa)")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -154,16 +174,21 @@ def main():
             print(f"{cat}: +{n} rows -> {out_path}", flush=True)
 
     if args.with_benign:
-        n_cap, n_qa = args.n_benign_caption, args.n_benign_qa
-        if args.n_samples:  # pilot: keep the benign half the same size as the harmful half
-            n_cap = n_qa = args.n_samples * len(args.categories) // 2
-        benign = load_mminstruct_benign(n_caption=n_cap, n_qa=n_qa, seed=cfg.seed)
-        actual_counts = {}
-        for task in ("caption", "qa"):
-            items = [{"category": f"benign_{b['scenario']}", "row_id": f"{task}:{i}",
-                      "prompt": b["prompt"], "label": 0, "task": task, "scenario": b["scenario"]}
-                     for i, b in enumerate(benign) if b["task"] == task]
-            actual_counts[f"n_benign_{task}_actual"] = len(items)
+        n_total = args.n_samples * len(args.categories) if args.n_samples else args.n_benign_total
+        n_fiqa = round(n_total * ECONOMIC_RATIO)
+        n_qa = n_total - n_fiqa
+
+        qa_benign = load_mminstruct_qa_benign(n=n_qa, per_scenario_cap=args.per_scenario_cap, seed=cfg.seed)
+        qa_items = [{"category": f"benign_{b['scenario']}", "row_id": f"qa:{i}",
+                     "prompt": b["prompt"], "label": 0, "task": "qa", "scenario": b["scenario"]}
+                    for i, b in enumerate(qa_benign)]
+
+        fiqa_prompts = load_benign_prompts(n_fiqa, seed=cfg.seed)
+        fiqa_items = [{"category": "benign_fiqa", "row_id": f"fiqa:{i}", "prompt": p, "label": 0,
+                       "task": "fiqa", "scenario": "fiqa"} for i, p in enumerate(fiqa_prompts)]
+
+        actual_counts = {"n_benign_qa_actual": len(qa_items), "n_benign_fiqa_actual": len(fiqa_items)}
+        for task, items in (("qa", qa_items), ("fiqa", fiqa_items)):
             out_path = os.path.join(args.out_dir, f"benign_{task}.jsonl")
             n = run_prompts(model, tokenizer, guard_qs, items, cfg.threshold, out_path, **couplings)
             print(f"benign_{task}: +{n} rows -> {out_path}", flush=True)
