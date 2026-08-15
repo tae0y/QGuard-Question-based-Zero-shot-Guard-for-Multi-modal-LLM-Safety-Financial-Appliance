@@ -7,6 +7,7 @@ def build_graph_from_results(
     group_by_category: Dict[str, str],
     group_coupling: float = 1.0,  # paper Sec 4.1.3; the 0.1 in Eq. for w_{g_i g_j} is the no-similarity fallback
     intra_group_q_coupling: float = 0.3,
+    symmetric_coupling: bool = False,  # paper adds "a directed edge" (one-way); True adds both directions
 ) -> nx.DiGraph:
     G = nx.DiGraph()
 
@@ -16,11 +17,18 @@ def build_graph_from_results(
         g = group_by_category.get(q, "Unknown")
         G.add_node(q, type="question")
         G.add_node(g, type="group")
-        G.add_edge(q, g, weight=max(0.0, min(1.0, p))) 
+        G.add_edge(q, g, weight=max(0.0, min(1.0, p)))
 
-    groups: Set[str] = {group_by_category.get(it["question"], "Unknown") for it in question_results}
+    # sorted(), not a bare set: iterating a set of str is ordered by hash, and
+    # CPython randomizes str hashing per process (PYTHONHASHSEED) unless fixed.
+    # With one-directional edges, that flipped which of every {g1, g2} pair
+    # got the edge on every single run -- the graph, and therefore risk_score,
+    # was not reproducible across process invocations for identical input.
+    groups: List[str] = sorted({group_by_category.get(it["question"], "Unknown") for it in question_results})
     for g1, g2 in itertools.combinations(groups, 2):
         G.add_edge(g1, g2, weight=group_coupling)
+        if symmetric_coupling:
+            G.add_edge(g2, g1, weight=group_coupling)
 
     qs_by_group: Dict[str, List[str]] = {}
     for it in question_results:
@@ -29,14 +37,16 @@ def build_graph_from_results(
     for g, qs in qs_by_group.items():
         for q1, q2 in itertools.combinations(qs, 2):
             G.add_edge(q1, q2, weight=intra_group_q_coupling)
+            if symmetric_coupling:
+                G.add_edge(q2, q1, weight=intra_group_q_coupling)
 
     return G
 
 
-def pagerank_risk_score(G: nx.DiGraph) -> float:
+def pagerank_risk_score(G: nx.DiGraph, alpha: float = 0.85) -> float:
     if len(G) == 0:
         return 0.0
-    pr = nx.pagerank(G, weight="weight")
+    pr = nx.pagerank(G, weight="weight", alpha=alpha)
     score = 0.0
     for n in G.nodes:
         out_w = sum(d.get("weight", 0.0) for _, _, d in G.edges(n, data=True))

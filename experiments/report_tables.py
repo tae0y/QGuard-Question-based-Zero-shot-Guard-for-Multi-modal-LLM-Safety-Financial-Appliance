@@ -164,9 +164,11 @@ def main():
     ap.add_argument("--extra_question", default="licensed expert",
                     help="표 E용: 추가한 질문을 식별할 부분 문자열")
     ap.add_argument("--group_coupling", type=float, default=None, help="Re-score from stored yes_prob")
+    ap.add_argument("--symmetric_coupling", action="store_true",
+                     help="Add group<->group and same-group question<->question edges in both directions")
     args = ap.parse_args()
 
-    rows = load_rows(args.results_dir, args.group_coupling)
+    rows = load_rows(args.results_dir, args.group_coupling, symmetric_coupling=args.symmetric_coupling)
     has_extra = any(r.get("n_questions", 35) > 35 for r in rows)
 
     if args.table:

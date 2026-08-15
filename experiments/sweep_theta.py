@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Tuple
 
 
 def load_rows(results_dir: str, group_coupling: float = None,
-              intra_group_q_coupling: float = 0.3) -> List[Dict[str, Any]]:
+              intra_group_q_coupling: float = 0.3, symmetric_coupling: bool = False) -> List[Dict[str, Any]]:
     rows = []
     for path in sorted(glob.glob(os.path.join(results_dir, "*.jsonl"))):
         with open(path, "r", encoding="utf-8") as f:
@@ -36,14 +36,16 @@ def load_rows(results_dir: str, group_coupling: float = None,
                     rows.append(json.loads(line))
                 except json.JSONDecodeError:
                     continue  # truncated tail from a killed run
-    if group_coupling is not None:
+    if group_coupling is not None or symmetric_coupling:
         from qguard.graph import build_graph_from_results, pagerank_risk_score
+        gc = group_coupling if group_coupling is not None else 1.0  # paper Sec 4.1.3 default
         for r in rows:
             qs = [{"question": q["question"], "yes_prob": q["yes_prob"]} for q in r["questions"]]
             gb = {q["question"]: q["category"] for q in r["questions"]}
             r["risk_score"] = pagerank_risk_score(build_graph_from_results(
-                qs, gb, group_coupling=group_coupling,
-                intra_group_q_coupling=intra_group_q_coupling))
+                qs, gb, group_coupling=gc,
+                intra_group_q_coupling=intra_group_q_coupling,
+                symmetric_coupling=symmetric_coupling))
     return rows
 
 
@@ -95,10 +97,12 @@ def main():
     ap.add_argument("--group_coupling", type=float, default=None,
                     help="Re-score from stored yes_prob with this coupling (default: use risk_score as written)")
     ap.add_argument("--intra_group_q_coupling", type=float, default=0.3)
+    ap.add_argument("--symmetric_coupling", action="store_true",
+                     help="Add group<->group and same-group question<->question edges in both directions")
     ap.add_argument("--out_json", default=None)
     args = ap.parse_args()
 
-    rows = load_rows(args.results_dir, args.group_coupling, args.intra_group_q_coupling)
+    rows = load_rows(args.results_dir, args.group_coupling, args.intra_group_q_coupling, args.symmetric_coupling)
     n_pos = sum(r["label"] == 1 for r in rows)
     n_neg = len(rows) - n_pos
     print(f"{len(rows)} rows: {n_pos} harmful / {n_neg} benign")
