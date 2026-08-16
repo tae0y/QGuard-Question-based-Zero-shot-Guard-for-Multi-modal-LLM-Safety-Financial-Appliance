@@ -19,12 +19,22 @@ def build_graph_from_results(
         G.add_node(g, type="group")
         G.add_edge(q, g, weight=max(0.0, min(1.0, p)))
 
-    # sorted(), not a bare set: iterating a set of str is ordered by hash, and
-    # CPython randomizes str hashing per process (PYTHONHASHSEED) unless fixed.
-    # With one-directional edges, that flipped which of every {g1, g2} pair
-    # got the edge on every single run -- the graph, and therefore risk_score,
-    # was not reproducible across process invocations for identical input.
-    groups: List[str] = sorted({group_by_category.get(it["question"], "Unknown") for it in question_results})
+    # list(dict.fromkeys(...)), not a bare set: iterating a set of str is
+    # ordered by hash, and CPython randomizes str hashing per process
+    # (PYTHONHASHSEED) unless fixed. With one-directional edges, that flipped
+    # which of every {g1, g2} pair got the edge on every single run -- the
+    # graph, and therefore risk_score, was not reproducible across process
+    # invocations for identical input. dict preserves insertion order
+    # regardless of PYTHONHASHSEED, so this keeps groups in first-appearance
+    # order from question_results instead of imposing sorted()'s alphabetical
+    # order -- deterministic either way, but this one doesn't invent an order
+    # the data didn't have. NOTE: this changes risk_score numerically from the
+    # sorted() baseline (see docs -- Financial_Advice recall 0.2335 -> 0.2695
+    # on mmsafety_full); re-run sweep_theta.py / sweep_graph_structure.py and
+    # update the documented baseline before trusting downstream results.
+    groups: List[str] = list(dict.fromkeys(
+        group_by_category.get(it["question"], "Unknown") for it in question_results
+    ))
     for g1, g2 in itertools.combinations(groups, 2):
         G.add_edge(g1, g2, weight=group_coupling)
         if symmetric_coupling:
